@@ -48,7 +48,8 @@ repositories {
 dependencies {
     compile "org.springframework.boot:spring-boot-starter-web"
     compile "org.slf4j:slf4j-ext"
-    annotationProcessor 'org.projectlombok:lombok:1.16.20'
+    compile "org.projectlombok:lombok"
+    annotationProcessor "org.projectlombok:lombok"
     compile files("openlmis-fulfillment-9.0.1-SNAPSHOT-exec.jar")
 }
 
