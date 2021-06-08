@@ -112,6 +112,7 @@ public class NavisionOrderCreator implements OrderCreatePostProcessor {
           order.getEmergency(),
           orderablesMap.get(orderLineItem.getOrderable().getId()).getProductCode(),
           orderLineItem.getOrderable().getId(),
+          orderLineItem.getOrderable().getVersionNumber(),
           orderablesMap.get(orderLineItem.getOrderable().getId()).getFullProductName(),
           orderablesMap.get(orderLineItem.getOrderable().getId()).getDispensable().getDisplayUnit(),
           orderLineItem.getOrderedQuantity(),

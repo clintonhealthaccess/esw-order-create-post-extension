@@ -34,6 +34,7 @@ public class NavisionOrderLineItemDto {
   private Boolean Emergency;
   private String Product_Code;
   private UUID Product_ID;
+  private Long Product_Version_No;
   private String Product;
   private String Dispencing_UOM;
   private Long Requested_Quantity;
@@ -77,6 +78,11 @@ public class NavisionOrderLineItemDto {
   @JsonProperty("Product_ID")
   public UUID getProduct_ID() {
     return Product_ID;
+  }
+
+  @JsonProperty("Product_Version_No")
+  public Long getProduct_Version_No() {
+    return Product_Version_No;
   }
 
   @JsonProperty("Product")
