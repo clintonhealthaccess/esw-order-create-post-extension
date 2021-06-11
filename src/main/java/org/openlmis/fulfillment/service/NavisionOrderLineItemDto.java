@@ -26,23 +26,21 @@ import lombok.Setter;
 @AllArgsConstructor
 public class NavisionOrderLineItemDto {
 
-  private String Facility_No;
+  private String Facility_Code;
   private String Program_Code;
-  private String Period_End_Date;
+  private String Period;
   private UUID Order_ID;
-  private String Order_No;
   private Boolean Emergency;
   private String Product_Code;
   private UUID Product_ID;
-  private Long Product_Version_No;
-  private String Product;
+  private Long Product_Version;
   private String Dispencing_UOM;
   private Long Requested_Quantity;
   private String Requested_Quantity_Explanation;
 
-  @JsonProperty("Facility_No")
-  public String getFacility_No() {
-    return Facility_No;
+  @JsonProperty("Facility_Code")
+  public String getFacility_Code() {
+    return Facility_Code;
   }
 
   @JsonProperty("Program_Code")
@@ -50,19 +48,14 @@ public class NavisionOrderLineItemDto {
     return Program_Code;
   }
 
-  @JsonProperty("Period_End_Date")
-  public String getPeriod_End_Date() {
-    return Period_End_Date;
+  @JsonProperty("Period")
+  public String getPeriod() {
+    return Period;
   }
 
   @JsonProperty("Order_ID")
   public UUID getOrder_ID() {
     return Order_ID;
-  }
-
-  @JsonProperty("Order_No")
-  public String getOrder_No() {
-    return Order_No;
   }
 
   @JsonProperty("Emergency")
@@ -80,14 +73,9 @@ public class NavisionOrderLineItemDto {
     return Product_ID;
   }
 
-  @JsonProperty("Product_Version_No")
-  public Long getProduct_Version_No() {
-    return Product_Version_No;
-  }
-
-  @JsonProperty("Product")
-  public String getProduct() {
-    return Product;
+  @JsonProperty("Product_Version")
+  public Long getProduct_Version() {
+    return Product_Version;
   }
 
   @JsonProperty("Dispencing_UOM")

@@ -16,12 +16,14 @@
 package org.openlmis.fulfillment.service;
 
 import java.net.URI;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.apache.tomcat.util.codec.binary.Base64;
 import org.openlmis.fulfillment.domain.Order;
 import org.openlmis.fulfillment.domain.OrderLineItem;
 import org.openlmis.fulfillment.extension.point.OrderCreatePostProcessor;
@@ -33,7 +35,6 @@ import org.openlmis.fulfillment.service.referencedata.PeriodReferenceDataService
 import org.openlmis.fulfillment.service.referencedata.ProcessingPeriodDto;
 import org.openlmis.fulfillment.service.referencedata.ProgramDto;
 import org.openlmis.fulfillment.service.referencedata.ProgramReferenceDataService;
-import org.openlmis.fulfillment.service.request.RequestHeaders;
 import org.openlmis.fulfillment.service.request.RequestHelper;
 import org.slf4j.ext.XLogger;
 import org.slf4j.ext.XLoggerFactory;
@@ -41,6 +42,7 @@ import org.slf4j.profiler.Profiler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestOperations;
@@ -71,6 +73,12 @@ public class NavisionOrderCreator implements OrderCreatePostProcessor {
   @Value("${navision.url}")
   private String navisionUrl;
 
+  @Value("${navision.username}")
+  private String navisionUsername;
+
+  @Value("${navision.password}")
+  private String navisionPassword;
+
   @Override
   public void process(Order order) {
     XLOGGER.entry(order);
@@ -100,44 +108,44 @@ public class NavisionOrderCreator implements OrderCreatePostProcessor {
     Map<UUID, RequisitionLineItemDto> lineItemsMap = requisition.getRequisitionLineItems().stream()
         .collect(Collectors.toMap(lineItem -> lineItem.getOrderable().getId(), lineItem -> lineItem));
 
-    XLOGGER.debug("Adding line items to request body");
-    List<NavisionOrderLineItemDto> request = new ArrayList<>();
+    String plainCreds = navisionUsername + ":" + navisionPassword;
+    byte[] plainCredsBytes = plainCreds.getBytes();
+    byte[] base64CredsBytes = Base64.encodeBase64(plainCredsBytes);
+    String base64Creds = new String(base64CredsBytes);
+    HttpHeaders headers = new HttpHeaders();
+    headers.add("Authorization", "Basic " + base64Creds);
+
+    URI uri = RequestHelper.createUri(navisionUrl);
+
+    XLOGGER.debug("Sending requests");
     for (OrderLineItem orderLineItem : order.getOrderLineItems()) {
-      NavisionOrderLineItemDto navisionLineItem = new NavisionOrderLineItemDto(
-          supplyingFacility.getCode(),
-          program.getCode(),
-          processingPeriod.getEndDate().toString(),
-          order.getId(),
-          order.getOrderCode(),
-          order.getEmergency(),
-          orderablesMap.get(orderLineItem.getOrderable().getId()).getProductCode(),
-          orderLineItem.getOrderable().getId(),
-          orderLineItem.getOrderable().getVersionNumber(),
-          orderablesMap.get(orderLineItem.getOrderable().getId()).getFullProductName(),
-          orderablesMap.get(orderLineItem.getOrderable().getId()).getDispensable().getDisplayUnit(),
-          orderLineItem.getOrderedQuantity(),
-          lineItemsMap.get(orderLineItem.getOrderable().getId()).getRequestedQuantityExplanation()
-      );
-      request.add(navisionLineItem);
+      try {
+        NavisionOrderLineItemDto requestBody = new NavisionOrderLineItemDto(
+            supplyingFacility.getCode(),
+            program.getCode(),
+            processingPeriod.getEndDate().format(DateTimeFormatter.ISO_INSTANT),
+            order.getId(),
+            order.getEmergency(),
+            orderablesMap.get(orderLineItem.getOrderable().getId()).getProductCode(),
+            orderLineItem.getOrderable().getId(),
+            orderLineItem.getOrderable().getVersionNumber(),
+            orderablesMap.get(orderLineItem.getOrderable().getId()).getDispensable().getDisplayUnit(),
+            orderLineItem.getOrderedQuantity(),
+            lineItemsMap.get(orderLineItem.getOrderable().getId()).getRequestedQuantityExplanation()
+        );
+        HttpEntity<NavisionOrderLineItemDto> entity = new HttpEntity<>(requestBody, headers);
+
+        restTemplate.postForObject(uri, entity, Object.class);
+
+      } catch (HttpStatusCodeException ex) {
+        XLOGGER.warn(
+            "Unable to create order in Navision. Error code: {}, response message: {}",
+            ex.getStatusCode(), ex.getResponseBodyAsString()
+        );
+      } catch (Exception ex) {
+        XLOGGER.warn("Unable to create order in Navision. Error message: {}", ex.getMessage());
+      }
     }
-
-    try {
-      XLOGGER.debug("Sending request");
-      RequestHeaders headers;
-      headers = RequestHeaders.init().setAuth("98c5faf9-05cc-4839-aebc-7677bd916d41");
-      URI uri = RequestHelper.createUri(navisionUrl);
-      HttpEntity<List<NavisionOrderLineItemDto>> entity = RequestHelper.createEntity(request, headers);
-
-      restTemplate.postForObject(uri, entity, Object.class);
-    } catch (HttpStatusCodeException ex) {
-      XLOGGER.warn(
-          "Unable to create order in Navision. Error code: {}, response message: {}",
-          ex.getStatusCode(), ex.getResponseBodyAsString()
-      );
-    } catch (Exception ex) {
-      XLOGGER.warn("Unable to create order in Navision. Error message: {}", ex.getMessage());
-    }
-
     profiler.stop().log();
     XLOGGER.exit();
   }
