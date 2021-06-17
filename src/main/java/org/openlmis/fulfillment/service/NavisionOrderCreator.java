@@ -18,6 +18,7 @@ package org.openlmis.fulfillment.service;
 import java.net.URI;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -26,7 +27,9 @@ import java.util.stream.Collectors;
 import org.apache.tomcat.util.codec.binary.Base64;
 import org.openlmis.fulfillment.domain.Order;
 import org.openlmis.fulfillment.domain.OrderLineItem;
+import org.openlmis.fulfillment.domain.OrderStatus;
 import org.openlmis.fulfillment.extension.point.OrderCreatePostProcessor;
+import org.openlmis.fulfillment.repository.OrderRepository;
 import org.openlmis.fulfillment.service.referencedata.FacilityDto;
 import org.openlmis.fulfillment.service.referencedata.FacilityReferenceDataService;
 import org.openlmis.fulfillment.service.referencedata.OrderableDto;
@@ -68,6 +71,9 @@ public class NavisionOrderCreator implements OrderCreatePostProcessor {
   @Autowired
   private PeriodReferenceDataService periodReferenceDataService;
 
+  @Autowired
+  private OrderRepository orderRepository;
+
   private final RestOperations restTemplate = new RestTemplate();
 
   @Value("${navision.url}")
@@ -85,66 +91,78 @@ public class NavisionOrderCreator implements OrderCreatePostProcessor {
     Profiler profiler = new Profiler("NAVISION_ORDER_CREATE_POST_PROCESSOR");
     profiler.setLogger(XLOGGER);
 
-    XLOGGER.debug("Getting reference data to create order to Navision API");
-    FacilityDto supplyingFacility = facilityReferenceDataService
-        .findOne(order.getSupplyingFacilityId());
+    if (order.isExternal()) {
+      XLOGGER.info("Order is an external order, send to Navision API");
 
-    ProgramDto program = programReferenceDataService
-        .findOne(order.getProgramId());
+      XLOGGER.debug("Set external order status to ORDERED, so shipment is not pre-created");
+      order.setStatus(OrderStatus.ORDERED);
+      order.getExtraData().put("externallyFulfilled", "true");
+      XLOGGER.debug("extra data = {}", order.getExtraData());
+      orderRepository.save(order);
 
-    List<UUID> orderableIds = new ArrayList<>();
-    for (OrderLineItem orderLineItem : order.getOrderLineItems()) {
-      orderableIds.add(orderLineItem.getOrderable().getId());
-    }
-    List<OrderableDto> orderables = orderableReferenceDataService
-        .findByIds(orderableIds);
-    Map<UUID, OrderableDto> orderablesMap = orderables.stream()
-        .collect(Collectors.toMap(OrderableDto::getId, Function.identity()));
+      XLOGGER.debug("Getting reference data to create order to Navision API");
+      FacilityDto receivingFacility = facilityReferenceDataService
+          .findOne(order.getReceivingFacilityId());
 
-    XLOGGER.debug("Getting requisition data to create order to Navision API");
-    RequisitionDto requisition = requisitionService.findOne(order.getExternalId());
-    ProcessingPeriodDto processingPeriod = periodReferenceDataService
-        .findOne(requisition.getProcessingPeriod().getId());
-    Map<UUID, RequisitionLineItemDto> lineItemsMap = requisition.getRequisitionLineItems().stream()
-        .collect(Collectors.toMap(lineItem -> lineItem.getOrderable().getId(), lineItem -> lineItem));
+      ProgramDto program = programReferenceDataService
+          .findOne(order.getProgramId());
 
-    String plainCreds = navisionUsername + ":" + navisionPassword;
-    byte[] plainCredsBytes = plainCreds.getBytes();
-    byte[] base64CredsBytes = Base64.encodeBase64(plainCredsBytes);
-    String base64Creds = new String(base64CredsBytes);
-    HttpHeaders headers = new HttpHeaders();
-    headers.add("Authorization", "Basic " + base64Creds);
-
-    URI uri = RequestHelper.createUri(navisionUrl);
-
-    XLOGGER.debug("Sending requests");
-    for (OrderLineItem orderLineItem : order.getOrderLineItems()) {
-      try {
-        NavisionOrderLineItemDto requestBody = new NavisionOrderLineItemDto(
-            supplyingFacility.getCode(),
-            program.getCode(),
-            processingPeriod.getEndDate().format(DateTimeFormatter.ISO_INSTANT),
-            order.getId(),
-            order.getEmergency(),
-            orderablesMap.get(orderLineItem.getOrderable().getId()).getProductCode(),
-            orderLineItem.getOrderable().getId(),
-            orderLineItem.getOrderable().getVersionNumber(),
-            orderablesMap.get(orderLineItem.getOrderable().getId()).getDispensable().getDisplayUnit(),
-            orderLineItem.getOrderedQuantity(),
-            lineItemsMap.get(orderLineItem.getOrderable().getId()).getRequestedQuantityExplanation()
-        );
-        HttpEntity<NavisionOrderLineItemDto> entity = new HttpEntity<>(requestBody, headers);
-
-        restTemplate.postForObject(uri, entity, Object.class);
-
-      } catch (HttpStatusCodeException ex) {
-        XLOGGER.warn(
-            "Unable to create order in Navision. Error code: {}, response message: {}",
-            ex.getStatusCode(), ex.getResponseBodyAsString()
-        );
-      } catch (Exception ex) {
-        XLOGGER.warn("Unable to create order in Navision. Error message: {}", ex.getMessage());
+      List<UUID> orderableIds = new ArrayList<>();
+      for (OrderLineItem orderLineItem : order.getOrderLineItems()) {
+        orderableIds.add(orderLineItem.getOrderable().getId());
       }
+      List<OrderableDto> orderables = orderableReferenceDataService
+          .findByIds(orderableIds);
+      Map<UUID, OrderableDto> orderablesMap = orderables.stream()
+          .collect(Collectors.toMap(OrderableDto::getId, Function.identity()));
+
+      XLOGGER.debug("Getting requisition data to create order to Navision API");
+      RequisitionDto requisition = requisitionService.findOne(order.getExternalId());
+      ProcessingPeriodDto processingPeriod = periodReferenceDataService
+          .findOne(requisition.getProcessingPeriod().getId());
+      Map<UUID, RequisitionLineItemDto> lineItemsMap = requisition.getRequisitionLineItems().stream()
+          .collect(Collectors.toMap(lineItem -> lineItem.getOrderable().getId(), lineItem -> lineItem));
+
+      String plainCreds = navisionUsername + ":" + navisionPassword;
+      byte[] plainCredsBytes = plainCreds.getBytes();
+      byte[] base64CredsBytes = Base64.encodeBase64(plainCredsBytes);
+      String base64Creds = new String(base64CredsBytes);
+      HttpHeaders headers = new HttpHeaders();
+      headers.add("Authorization", "Basic " + base64Creds);
+
+      URI uri = RequestHelper.createUri(navisionUrl);
+
+      XLOGGER.debug("Sending requests");
+      for (OrderLineItem orderLineItem : order.getOrderLineItems()) {
+        try {
+          NavisionOrderLineItemDto requestBody = new NavisionOrderLineItemDto(
+              receivingFacility.getCode(),
+              program.getCode(),
+              processingPeriod.getEndDate().format(DateTimeFormatter.ISO_LOCAL_DATE) + "T00:00:00Z",
+              order.getId(),
+              order.getEmergency(),
+              orderablesMap.get(orderLineItem.getOrderable().getId()).getProductCode(),
+              orderLineItem.getOrderable().getId(),
+              orderLineItem.getOrderable().getVersionNumber(),
+              orderablesMap.get(orderLineItem.getOrderable().getId()).getDispensable().getDisplayUnit(),
+              orderLineItem.getOrderedQuantity(),
+              lineItemsMap.get(orderLineItem.getOrderable().getId()).getRequestedQuantityExplanation()
+          );
+          HttpEntity<NavisionOrderLineItemDto> entity = new HttpEntity<>(requestBody, headers);
+
+          restTemplate.postForObject(uri, entity, Object.class);
+
+        } catch (HttpStatusCodeException ex) {
+          XLOGGER.warn(
+              "Unable to create order in Navision. Error code: {}, response message: {}",
+              ex.getStatusCode(), ex.getResponseBodyAsString()
+          );
+        } catch (Exception ex) {
+          XLOGGER.warn("Unable to create order in Navision. Error message: {}", ex.getMessage());
+        }
+      }
+    } else {
+      XLOGGER.debug("Order is locally fulfilled, do not send to Navision API");
     }
     profiler.stop().log();
     XLOGGER.exit();
