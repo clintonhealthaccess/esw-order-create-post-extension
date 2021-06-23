@@ -51,7 +51,7 @@ dependencies {
     compile "org.slf4j:slf4j-ext"
     compile "org.projectlombok:lombok"
     annotationProcessor "org.projectlombok:lombok"
-    compile files("openlmis-fulfillment-9.0.1-SNAPSHOT-exec.jar")
+    compile "org.openlmis:openlmis-fulfillment:9.0.1-SNAPSHOT:exec"
 }
 
 bootJar {
