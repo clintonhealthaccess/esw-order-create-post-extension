@@ -34,7 +34,6 @@ public class NavisionOrderLineItemDto {
   private String Product_Code;
   private UUID Product_ID;
   private Long Product_Version;
-  private String Dispencing_UOM;
   private Long Requested_Quantity;
   private String Requested_Quantity_Explanation;
 
@@ -78,11 +77,6 @@ public class NavisionOrderLineItemDto {
     return Product_Version;
   }
 
-  @JsonProperty("Dispencing_UOM")
-  public String getDispencing_UOM() {
-    return Dispencing_UOM;
-  }
-
   @JsonProperty("Requested_Quantity")
   public Long getRequested_Quantity() {
     return Requested_Quantity;
@@ -91,5 +85,21 @@ public class NavisionOrderLineItemDto {
   @JsonProperty("Requested_Quantity_Explanation")
   public String getRequested_Quantity_Explanation() {
     return Requested_Quantity_Explanation;
+  }
+
+  @Override
+  public String toString() {
+    return "NavisionOrderLineItemDto{" +
+        "Facility_Code='" + Facility_Code + '\'' +
+        ", Program_Code='" + Program_Code + '\'' +
+        ", Period='" + Period + '\'' +
+        ", Order_ID=" + Order_ID +
+        ", Emergency=" + Emergency +
+        ", Product_Code='" + Product_Code + '\'' +
+        ", Product_ID=" + Product_ID +
+        ", Product_Version=" + Product_Version +
+        ", Requested_Quantity=" + Requested_Quantity +
+        ", Requested_Quantity_Explanation='" + Requested_Quantity_Explanation + '\'' +
+        '}';
   }
 }

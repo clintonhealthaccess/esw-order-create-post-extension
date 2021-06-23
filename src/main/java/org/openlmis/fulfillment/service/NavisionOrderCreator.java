@@ -144,10 +144,10 @@ public class NavisionOrderCreator implements OrderCreatePostProcessor {
               orderablesMap.get(orderLineItem.getOrderable().getId()).getProductCode(),
               orderLineItem.getOrderable().getId(),
               orderLineItem.getOrderable().getVersionNumber(),
-              orderablesMap.get(orderLineItem.getOrderable().getId()).getDispensable().getDisplayUnit(),
               orderLineItem.getOrderedQuantity(),
               lineItemsMap.get(orderLineItem.getOrderable().getId()).getRequestedQuantityExplanation()
           );
+          XLOGGER.debug("request body = {}", requestBody);
           HttpEntity<NavisionOrderLineItemDto> entity = new HttpEntity<>(requestBody, headers);
 
           restTemplate.postForObject(uri, entity, Object.class);
